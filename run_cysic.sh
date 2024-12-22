@@ -1,5 +1,3 @@
-#!/bin/bash
-
 # Menampilkan ASCII art untuk "Saandy"
 echo "  ██████ ▄▄▄     ▄▄▄      ███▄    █▓█████▓██   ██▓"
 echo "▒██    ▒▒████▄  ▒████▄    ██ ▀█   █▒██▀ ██▒██  ██▒"
@@ -8,7 +6,7 @@ echo "  ▒   ██░██▄▄▄▄█░██▄▄▄▄██▓██
 echo "▒██████▒▒▓█   ▓██▓█   ▓██▒██░   ▓██░▒████▓ ░ ██▒▓░"
 echo "▒ ▒▓▒ ▒ ░▒▒   ▓▒█▒▒   ▓▒█░ ▒░   ▒ ▒ ▒▒▓  ▒  ██▒▒▒ "
 echo "░ ░▒  ░ ░ ▒   ▒▒ ░▒   ▒▒ ░ ░░   ░ ▒░░ ▒  ▒▓██ ░▒░ "
-echo "░  ░  ░   ░   ▒   ░   ▒     ░   ░ ░ ░ ░  ░▒ ▒ ░░  "
+echo "░  ░  ░   ░   ▒   ░   ░     ░   ░ ░ ░ ░  ░▒ ▒ ░░  "
 echo "      ░       ░  ░    ░  ░        ░   ░   ░ ░     "
 echo "                                    ░     ░ ░     "
 echo
@@ -23,7 +21,7 @@ if [[ -z "$REWARD_ADDRESS" ]]; then
   exit 1
 fi
 
-# Hentikan layanan cysic
+# Hentikan layanan cysic jika sedang berjalan
 sudo systemctl stop cysic
 
 # Hapus file database cysic-verifier
@@ -33,6 +31,31 @@ sudo rm -rf cysic-verifier/data/cysic-verifier.db
 curl -L https://github.com/cysic-labs/phase2_libs/releases/download/v1.0.0/setup_linux.sh > ~/setup_linux.sh
 bash ~/setup_linux.sh "$REWARD_ADDRESS"
 
-# Mulai ulang layanan cysic dan tampilkan log secara real-time
-sudo systemctl restart cysic
+# Membuat file konfigurasi systemd untuk cysic service
+sudo tee /etc/systemd/system/cysic.service > /dev/null << EOF 
+[Unit]
+Description=Cysic Verifier Node 
+After=network-online.target
+
+[Service]
+User=$USER
+ExecStart=/bin/bash -c 'cd $HOME/cysic-verifier && bash start.sh' 
+Restart=always
+RestartSec=3
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Muat ulang systemd untuk mengenali layanan cysic
+sudo systemctl daemon-reload
+
+# Aktifkan layanan cysic untuk start otomatis pada boot
+sudo systemctl enable cysic
+
+# Mulai layanan cysic
+sudo systemctl start cysic
+
+# Tampilkan log cysic secara real-time
 sudo journalctl -u cysic -f --no-hostname -o cat
